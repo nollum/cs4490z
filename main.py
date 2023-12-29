@@ -23,17 +23,6 @@ EFFORT_RANGES = {
 
 app = typer.Typer()
 
-@app.command()
-def hello(name: str):
-    print(f"Hello {name}")
-
-@app.command()
-def goodbye(name: str, formal: bool = False):
-    if formal:
-        print(f"Goodbye Ms. {name}. Have a good day.")
-    else:
-        print(f"Bye {name}!")
-
 def compress_with_jxl(file, output_path, effort=7):
     result = subprocess.run(["./cjxl", "-d", "0", "-e", str(effort), file, output_path + ".jxl"], capture_output=True, encoding="utf-8")
     return result
@@ -118,11 +107,11 @@ def run(algorithm: Algorithm = typer.Option(
         write_to_csv(results, 'compression_results_wp.csv')
         results = []
         
-        # for effort in range(0, 101):
-        #     filename = str(uuid.uuid4())
-        #     result = run_compression(file, output_path+"_"+str(effort), compress_with_flif, "flif", effort=effort)
-        #     results.append((os.path.basename(file), *result, effort))
+        for effort in range(0, 101):
+            filename = str(uuid.uuid4())
+            result = run_compression(file, output_path+"_"+str(effort), compress_with_flif, "flif", effort=effort)
+            results.append((os.path.basename(file), *result, effort))
 
-        # write_to_csv(results, 'compression_results_flif.csv')
+        write_to_csv(results, 'compression_results_flif.csv')
 if __name__ == '__main__':
     app()
