@@ -33,7 +33,6 @@ def compress_with_jxl(file, output_path, effort=7):
 
 def compress_with_webp(file, output_path, effort=5):
     result = subprocess.run(["./cwp2", "-q", "100", "-effort", str(effort), file, "-o", output_path + ".wp2"], capture_output=True, encoding="utf-8")
-    print(result.stdout)
     return result
 
 def compress_with_flif(file, output_path, effort=60):
@@ -44,7 +43,6 @@ def run_compression(file, output_path, compression_function, format_name, effort
     results = []
 
     for effort in effort_range:
-        print(file, effort)
         start_time = time.time()
         result = compression_function(file, f"{output_path}_{effort}", effort=effort, **kwargs)
         end_time = time.time()
@@ -157,12 +155,37 @@ def run(encoder: Encoder = typer.Option(
             wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp", range(10)))
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(101)))
 
-    if (jxl_results):
+    if jxl_results:
         write_to_csv(jxl_results, 'compression_results_jxl.csv')
+        avg_jxl = calculate_average_values(jxl_results)
+        print(f"\nAverage Compression Ratio for JPEG XL: {avg_jxl[0]:.4f}")
+        print(f"Average Time Elapsed (seconds) for JPEG XL: {avg_jxl[1]:.4f}")
     if (wp_results):
         write_to_csv(wp_results, 'compression_results_wp.csv')
+        avg_wp = calculate_average_values(wp_results)
+        print(f"\nAverage Compression Ratio for WebP: {avg_wp[0]:.4f}")
+        print(f"Average Time Elapsed (seconds) for WebP: {avg_wp[1]:.4f}")
     if (flif_results):
         write_to_csv(flif_results, 'compression_results_flif.csv')
+        avg_flif = calculate_average_values(flif_results)
+        print(f"\nAverage Compression Ratio for Flif: {avg_flif[0]:.4f}")
+        print(f"Average Time Elapsed (seconds) for Flif: {avg_flif[1]:.4f}")
+
+def calculate_average_values(results):
+    if not results:
+        return 0, 0
+
+    total_compression_ratio = 0
+    total_elapsed_time = 0
+
+    for _, original_size, compressed_size, elapsed_time, _ in results:
+        total_compression_ratio += compressed_size / original_size
+        total_elapsed_time += elapsed_time
+
+    average_compression_ratio = total_compression_ratio / len(results)
+    average_elapsed_time = total_elapsed_time / len(results)
+
+    return average_compression_ratio, average_elapsed_time
 
 if __name__ == '__main__':
     app()
