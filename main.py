@@ -49,9 +49,10 @@ def run_compression(file, output_path, compression_function, format_name, effort
 
         elapsed_time = end_time - start_time
         compressed_file_size = os.path.getsize(f"{output_path}_{effort}.{format_name}")
-        original_file_size = os.path.getsize(file)
+        original_file_size = os.path.getsize(file) * 3 # in case of PNG since there are 3 channels 
+        compression_ratio = compressed_file_size / original_file_size  
 
-        results.append((os.path.basename(file), original_file_size, compressed_file_size, elapsed_time, effort))
+        results.append((os.path.basename(file), original_file_size, compressed_file_size, compression_ratio, elapsed_time, effort))
 
     return results 
 
@@ -63,12 +64,12 @@ def write_to_csv(results, csv_filename):
 
         writer.writeheader()
 
-        for filename, original_size, compressed_size, elapsed_time, effort in results:
+        for filename, original_size, compressed_size, compression_ratio, elapsed_time, effort in results:
             writer.writerow({
                 'Filename': filename,
-                'Original File Size (bytes)': original_size*3, # in case of PNG since there are 3 channels (RGB)
+                'Original File Size (bytes)': original_size, 
                 'Compressed File Size (bytes)': compressed_size,
-                'Compression Ratio': compressed_size / (original_size*3),
+                'Compression Ratio': compression_ratio,
                 'Time Elapsed (seconds)': elapsed_time,
                 'Effort': effort
             })
@@ -178,8 +179,8 @@ def calculate_average_values(results):
     total_compression_ratio = 0
     total_elapsed_time = 0
 
-    for _, original_size, compressed_size, elapsed_time, _ in results:
-        total_compression_ratio += compressed_size / original_size
+    for _, original_size, compressed_size, compression_ratio, elapsed_time, _ in results:
+        total_compression_ratio += compression_ratio
         total_elapsed_time += elapsed_time
 
     average_compression_ratio = total_compression_ratio / len(results)
