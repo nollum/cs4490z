@@ -6,6 +6,7 @@ import time
 import uuid
 import csv
 import typer
+import cv2
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -42,6 +43,10 @@ def compress_with_flif(file, output_path, effort=60):
 def run_compression(file, output_path, compression_function, format_name, effort_range, **kwargs) -> (int, int, float):
     results = []
 
+    im = cv2.imread(file)
+    h, w, _ = im.shape
+    original_size = 3 * h * w
+
     for effort in effort_range:
         start_time = time.time()
         result = compression_function(file, f"{output_path}_{effort}", effort=effort, **kwargs)
@@ -49,10 +54,9 @@ def run_compression(file, output_path, compression_function, format_name, effort
 
         elapsed_time = end_time - start_time
         compressed_file_size = os.path.getsize(f"{output_path}_{effort}.{format_name}")
-        original_file_size = os.path.getsize(file) * 3 # in case of PNG since there are 3 channels 
-        compression_ratio = compressed_file_size / original_file_size  
+        compression_ratio = compressed_file_size / original_size  
 
-        results.append((os.path.basename(file), original_file_size, compressed_file_size, compression_ratio, elapsed_time, effort))
+        results.append((os.path.basename(file), original_size, compressed_file_size, compression_ratio, elapsed_time, effort))
 
     return results 
 
@@ -148,12 +152,12 @@ def run(encoder: Encoder = typer.Option(
         if (encoder == Encoder.cjxl):
             jxl_results.extend(run_compression(file, output_path, compress_with_jxl, "jxl", range(1, 10)))
         elif (encoder == Encoder.cwp2):
-            wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp", range(10)))
+            wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
         elif (encoder == Encoder.flif):
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(101)))
         else:   
             jxl_results.extend(run_compression(file, output_path, compress_with_jxl, "jxl", range(1, 10)))
-            wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp", range(10)))
+            wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(101)))
 
     if jxl_results:
@@ -162,7 +166,7 @@ def run(encoder: Encoder = typer.Option(
         print(f"\nAverage Compression Ratio for JPEG XL: {avg_jxl[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for JPEG XL: {avg_jxl[1]:.4f}")
     if (wp_results):
-        write_to_csv(wp_results, 'compression_results_wp.csv')
+        write_to_csv(wp_results, 'compression_results_wp2.csv')
         avg_wp = calculate_average_values(wp_results)
         print(f"\nAverage Compression Ratio for WebP: {avg_wp[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for WebP: {avg_wp[1]:.4f}")
