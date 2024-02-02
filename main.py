@@ -43,32 +43,6 @@ def compress_with_flif(file, output_path, effort=60):
     result = subprocess.run(["./flif", "-E", str(effort), file,  output_path + ".flif"], capture_output=True, encoding="utf-8")
     return result
 
-# def run_compression(file, output_path, compression_function, format_name, effort_range, **kwargs) -> list:
-#     results = []
-
-#     im = cv2.imread(file)
-#     h, w, _ = im.shape
-#     original_size = 3 * h * w
-
-#     with ThreadPoolExecutor() as executor:
-#         compression_tasks = [
-#             executor.submit(compression_function, file, f"{output_path}_{effort}", effort=effort, **kwargs)
-#             for effort in effort_range
-#         ]
-
-#         for task, effort in zip(compression_tasks, effort_range):
-#             start_time = time.time()
-#             result = task.result()
-#             end_time = time.time()
-
-#             elapsed_time = end_time - start_time
-#             compressed_file_size = os.path.getsize(f"{output_path}_{effort}.{format_name}")
-#             compression_ratio = original_size / compressed_file_size
-
-#             results.append((os.path.basename(file), original_size, compressed_file_size, compression_ratio, elapsed_time, effort))
-
-#     return results
-
 def timed(func):
     def _w(*a, **k):
         then = time.time()
