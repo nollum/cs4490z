@@ -22,11 +22,13 @@ class Encoder(str, Enum):
     cjxl = "cjxl"
     cwp2 = "cwp2"
     flif = "flif"
+    bpgenc = "bpgenc"
 
 EFFORT_RANGES = {
     Encoder.cjxl: {'range': range(1, 10), 'step': 1},
     Encoder.cwp2: {'range': range(0, 10), 'step': 1},
     Encoder.flif: {'range': range(0, 101), 'step': 10},
+    Encoder.bpgenc: range(0, 52, 3)
 }
 
 app = typer.Typer()
@@ -41,6 +43,10 @@ def compress_with_webp(file, output_path, effort=5):
 
 def compress_with_flif(file, output_path, effort=60):
     result = subprocess.run(["./flif", "-E", str(effort), file,  output_path + ".flif"], capture_output=True, encoding="utf-8")
+    return result
+
+def compress_with_bpg(file, output_path, effort=29):
+    result = subprocess.run(["./bpgenc", "-lossless", "-q", str(effort), file, "-o", output_path + ".bpg"], capture_output=True, encoding="utf-8")
     return result
 
 def timed(func):
@@ -163,6 +169,7 @@ def run(encoder: Encoder = typer.Option(
     jxl_results = []
     wp_results = []
     flif_results = []
+    bpg_results = []
 
     files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
 
@@ -177,10 +184,13 @@ def run(encoder: Encoder = typer.Option(
             wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
         elif (encoder == Encoder.flif):
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(0, 101, 10)))
+        elif (encoder == Encoder.bpgenc):
+            bpg_results.extend(run_compression(file, output_path, compress_with_bpg, "bpg", EFFORT_RANGES[Encoder.bpgenc]))
         else:   
             jxl_results.extend(run_compression(file, output_path, compress_with_jxl, "jxl", range(1, 10)))
             wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(0, 101, 10)))
+            bpg_results.extend(run_compression(file, output_path, compress_with_bpg, "bpg", EFFORT_RANGES[Encoder.bpgenc]))
 
     end_time_total = time.time()  
     total_elapsed_time = end_time_total - start_time_total
@@ -201,7 +211,11 @@ def run(encoder: Encoder = typer.Option(
         avg_flif = calculate_average_values(flif_results)
         print(f"\nAverage Compression Ratio for Flif: {avg_flif[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for Flif: {avg_flif[1]:.4f}")
-    
+    if (bpg_results):
+        write_to_csv(bpg_results, 'compression_results_bpg.csv')
+        avg_bpg = calculate_average_values(bpg_results)
+        print(f"\nAverage Compression Ratio for BPG: {avg_bpg[0]:.4f}")
+        print(f"Average Time Elapsed (seconds) for BPG: {avg_bpg[1]:.4f}") 
    
 
 def calculate_average_values(results):
