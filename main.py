@@ -14,7 +14,6 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 
 
@@ -22,13 +21,11 @@ class Encoder(str, Enum):
     cjxl = "cjxl"
     cwp2 = "cwp2"
     flif = "flif"
-    bpgenc = "bpgenc"
 
 EFFORT_RANGES = {
     Encoder.cjxl: {'range': range(1, 10), 'step': 1},
     Encoder.cwp2: {'range': range(0, 10), 'step': 1},
     Encoder.flif: {'range': range(0, 101), 'step': 10},
-    Encoder.bpgenc: range(0, 52, 3)
 }
 
 app = typer.Typer()
@@ -44,11 +41,7 @@ def compress_with_webp(file, output_path, effort=5):
 def compress_with_flif(file, output_path, effort=60):
     result = subprocess.run(["./flif", "-E", str(effort), file,  output_path + ".flif"], capture_output=True, encoding="utf-8")
     return result
-
-def compress_with_bpg(file, output_path, effort=29):
-    result = subprocess.run(["./bpgenc", "-lossless", "-q", str(effort), file, "-o", output_path + ".bpg"], capture_output=True, encoding="utf-8")
-    return result
-
+    
 def timed(func):
     def _w(*a, **k):
         then = time.time()
@@ -67,7 +60,7 @@ def run_compression(file, output_path, compression_function, format_name, effort
     h, w, _ = im.shape
     original_size = 3 * h * w
 
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=10) as executor:
         tasks = []
 
         for effort in effort_range:
@@ -81,21 +74,23 @@ def run_compression(file, output_path, compression_function, format_name, effort
             compression_ratio = original_size / compressed_file_size
             perc_of_original = compressed_file_size / original_size
 
-            results.append((os.path.basename(file), original_size, compressed_file_size, compression_ratio, perc_of_original, elapsed, effort))
+            results.append((os.path.basename(file), original_size, w, h, compressed_file_size, compression_ratio, perc_of_original, elapsed, effort))
 
     return results
 
 def write_to_csv(results, csv_filename):
     with open(csv_filename, 'w', newline='') as csvfile:
-        fieldnames = ['Filename', 'Original File Size (bytes)', 'Compressed File Size (bytes)', 'Compression Ratio', '% of Original', 'Time Elapsed (seconds)', 'Effort']
+        fieldnames = ['Filename', 'Original File Size (bytes)', 'Width', 'Height', 'Compressed File Size (bytes)', 'Compression Ratio', '% of Original', 'Time Elapsed (seconds)', 'Effort']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
 
-        for filename, original_size, compressed_size, compression_ratio, perc_of_original, elapsed_time, effort in results:
+        for filename, original_size, w, h, compressed_size, compression_ratio, perc_of_original, elapsed_time, effort in results:
             writer.writerow({
                 'Filename': filename,
                 'Original File Size (bytes)': original_size, 
+                'Width': w,
+                'Height': h,
                 'Compressed File Size (bytes)': compressed_size,
                 'Compression Ratio': compression_ratio,
                 '% of Original': perc_of_original,
@@ -158,18 +153,24 @@ def run(encoder: Encoder = typer.Option(
         "--encoder",
         help="Specify an encoder. Use this option if you want to compress using only one encoder.",
         show_choices=True,
+    ), compare: bool = typer.Option(
+        False,
+        "--compare",
+        help="Compare decompressed image to original image"
     ), input_dir: Path = typer.Argument(
         os.getcwd(),
         help="Specify path to input directory",
     ), output_dir: Path = typer.Argument(
         os.getcwd(),
         help="Specify path to output directory",
+    ), output_csv: str = typer.Argument(
+        "compression_results",
+        help="Specify name of output csv file",
     )):
 
     jxl_results = []
     wp_results = []
     flif_results = []
-    bpg_results = []
 
     files = [os.path.join(input_dir, f) for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
 
@@ -184,38 +185,30 @@ def run(encoder: Encoder = typer.Option(
             wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
         elif (encoder == Encoder.flif):
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(0, 101, 10)))
-        elif (encoder == Encoder.bpgenc):
-            bpg_results.extend(run_compression(file, output_path, compress_with_bpg, "bpg", EFFORT_RANGES[Encoder.bpgenc]))
         else:   
             jxl_results.extend(run_compression(file, output_path, compress_with_jxl, "jxl", range(1, 10)))
             wp_results.extend(run_compression(file, output_path, compress_with_webp, "wp2", range(10)))
             flif_results.extend(run_compression(file, output_path, compress_with_flif, "flif", range(0, 101, 10)))
-            bpg_results.extend(run_compression(file, output_path, compress_with_bpg, "bpg", EFFORT_RANGES[Encoder.bpgenc]))
 
     end_time_total = time.time()  
     total_elapsed_time = end_time_total - start_time_total
-    print(f"\nTotal Time Elapsed for the entire program: {total_elapsed_time:.4f} seconds")
+    print(f"\nTotal Time Elapsed for compression: {total_elapsed_time:.4f} seconds")
     
     if jxl_results:
-        write_to_csv(jxl_results, 'compression_results_jxl.csv')
+        write_to_csv(jxl_results, output_csv + '_jxl.csv')
         avg_jxl = calculate_average_values(jxl_results)
         print(f"\nAverage Compression Ratio for JPEG XL: {avg_jxl[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for JPEG XL: {avg_jxl[1]:.4f}")
     if (wp_results):
-        write_to_csv(wp_results, 'compression_results_wp2.csv')
+        write_to_csv(wp_results,  output_csv + '_wp2.csv')
         avg_wp = calculate_average_values(wp_results)
         print(f"\nAverage Compression Ratio for WebP: {avg_wp[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for WebP: {avg_wp[1]:.4f}")
     if (flif_results):
-        write_to_csv(flif_results, 'compression_results_flif.csv')
+        write_to_csv(flif_results, output_csv + '_flif.csv')
         avg_flif = calculate_average_values(flif_results)
         print(f"\nAverage Compression Ratio for Flif: {avg_flif[0]:.4f}")
         print(f"Average Time Elapsed (seconds) for Flif: {avg_flif[1]:.4f}")
-    if (bpg_results):
-        write_to_csv(bpg_results, 'compression_results_bpg.csv')
-        avg_bpg = calculate_average_values(bpg_results)
-        print(f"\nAverage Compression Ratio for BPG: {avg_bpg[0]:.4f}")
-        print(f"Average Time Elapsed (seconds) for BPG: {avg_bpg[1]:.4f}") 
    
 
 def calculate_average_values(results):
@@ -225,7 +218,7 @@ def calculate_average_values(results):
     total_compression_ratio = 0
     total_elapsed_time = 0
 
-    for _, original_size, compressed_size, compression_ratio, _, elapsed_time, _ in results:
+    for _, original_size, _, _, compressed_size, compression_ratio, _, elapsed_time, _ in results:
         total_compression_ratio += compression_ratio
         total_elapsed_time += elapsed_time
 
